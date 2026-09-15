@@ -1,10 +1,12 @@
-const CACHE_NAME = "maodeobra-v1";
+const CACHE_NAME = "maodeobra-v2";
 
 const APP_SHELL = [
   "./",
   "./index.html",
+  "./historico.html",
   "./styles.css",
   "./app.js",
+  "./historico.js",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-maskable.svg"
@@ -48,10 +50,10 @@ self.addEventListener("fetch", (event) => {
       fetch(request)
         .then((response) => {
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("./index.html", copy));
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           return response;
         })
-        .catch(() => caches.match("./index.html"))
+        .catch(() => caches.match(request).then((cached) => cached || caches.match("./index.html")))
     );
     return;
   }

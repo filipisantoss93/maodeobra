@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#071b33">
+  <meta name="description" content="Histórico detalhado dos lançamentos de mão de obra.">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Mão de Obra">
+
+  <title>Histórico | Mão de Obra</title>
+
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
+  <link rel="apple-touch-icon" href="./icons/icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="page-shell history-page-shell">
+    <section class="app-card wide" aria-labelledby="page-title">
+      <header class="app-header history-page-header">
+        <div class="brand-mark" aria-hidden="true">MO</div>
+        <div class="header-copy">
+          <p class="eyebrow">LANÇAMENTOS</p>
+          <h1 id="page-title">Histórico detalhado</h1>
+        </div>
+        <a class="header-back" href="index.html">Voltar</a>
+      </header>
+
+      <section class="filter-card" aria-labelledby="filter-title">
+        <div>
+          <p class="eyebrow">FILTRAR PERÍODO</p>
+          <h2 id="filter-title">Selecione mês e ano</h2>
+          <small>O período segue o ciclo da M.O: dia 26 até dia 25 do mês selecionado.</small>
+        </div>
+
+        <form id="historico-form" class="filter-form">
+          <div class="filter-grid">
+            <div class="field-group">
+              <label for="mes">Mês</label>
+              <select id="mes" name="mes" required>
+                <option value="1">Janeiro</option>
+                <option value="2">Fevereiro</option>
+                <option value="3">Março</option>
+                <option value="4">Abril</option>
+                <option value="5">Maio</option>
+                <option value="6">Junho</option>
+                <option value="7">Julho</option>
+                <option value="8">Agosto</option>
+                <option value="9">Setembro</option>
+                <option value="10">Outubro</option>
+                <option value="11">Novembro</option>
+                <option value="12">Dezembro</option>
+              </select>
+            </div>
+
+            <div class="field-group">
+              <label for="ano">Ano</label>
+              <select id="ano" name="ano" required></select>
+            </div>
+          </div>
+
+          <button id="btn-buscar" class="filter-action" type="submit">BUSCAR</button>
+        </form>
+      </section>
+
+      <section class="history-summary" aria-live="polite">
+        <div>
+          <span>Total de M.O do período</span>
+          <strong id="historico-total">0.00</strong>
+        </div>
+        <div class="history-summary-meta">
+          <span id="historico-periodo">Selecione um período</span>
+          <small id="historico-quantidade">0 lançamentos</small>
+        </div>
+      </section>
+
+      <p id="historico-status" class="status history-status" role="status" aria-live="polite"></p>
+
+      <section class="records-section" aria-labelledby="records-title">
+        <div class="records-title-row">
+          <div>
+            <p class="eyebrow">DETALHES</p>
+            <h2 id="records-title">Lançamentos do período</h2>
+          </div>
+        </div>
+
+        <div class="records-head" aria-hidden="true">
+          <span>Data</span>
+          <span>Hora</span>
+          <span>Ordem</span>
+          <span>M.O</span>
+        </div>
+
+        <div id="lancamentos-list" class="records-list" aria-live="polite">
+          <p class="history-empty">Carregando lançamentos...</p>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="historico.js" defer></script>
+</body>
+</html>

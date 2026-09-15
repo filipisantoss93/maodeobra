@@ -29,6 +29,8 @@ function doGet(e) {
         history: resumo.ciclos.map((item) => ({
           label: item.ciclo,
           total: item.total,
+          ultimoLancamento: item.ultimoLancamento,
+          dataHora: item.ultimoLancamento,
           current: item.ciclo === resumo.cicloAtual
         }))
       });
@@ -179,27 +181,39 @@ function gerarResumo(aba) {
     const mo = Number(linha[2]);
     const valor = Number.isFinite(mo) ? mo : 0;
     const ciclo = calcularCiclo(data);
+    const timestampLancamento = data.getTime();
 
     if (!totais[ciclo]) {
       totais[ciclo] = {
         total: 0,
-        timestamp: obterInicioCicloTimestamp(data)
+        timestamp: obterInicioCicloTimestamp(data),
+        ultimoLancamentoTimestamp: timestampLancamento
       };
     }
 
     totais[ciclo].total += valor;
+
+    if (timestampLancamento > totais[ciclo].ultimoLancamentoTimestamp) {
+      totais[ciclo].ultimoLancamentoTimestamp = timestampLancamento;
+    }
   });
 
   const ciclos = Object.keys(totais)
     .map((ciclo) => ({
       ciclo,
       total: totais[ciclo].total.toFixed(2),
-      timestamp: totais[ciclo].timestamp
+      timestamp: totais[ciclo].timestamp,
+      ultimoLancamento: Utilities.formatDate(
+        new Date(totais[ciclo].ultimoLancamentoTimestamp),
+        TIME_ZONE,
+        "dd/MM/yyyy HH:mm:ss"
+      )
     }))
     .sort((a, b) => b.timestamp - a.timestamp)
     .map((item) => ({
       ciclo: item.ciclo,
-      total: item.total
+      total: item.total,
+      ultimoLancamento: item.ultimoLancamento
     }));
 
   return {

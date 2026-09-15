@@ -1,4 +1,4 @@
-const CACHE_NAME = "maodeobra-v5";
+const CACHE_NAME = "maodeobra-v6";
 
 const APP_SHELL = [
   "./",

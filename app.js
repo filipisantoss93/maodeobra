@@ -37,41 +37,18 @@ function definirCarregando(carregando) {
   submitButton.textContent = carregando ? "REGISTRANDO..." : "REGISTRAR";
 }
 
-function consultarTotalViaJsonp() {
-  return new Promise((resolve, reject) => {
-    const callbackName = `moCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
-    const script = document.createElement("script");
-    const separador = APPS_SCRIPT_URL.includes("?") ? "&" : "?";
-    const timeout = window.setTimeout(() => {
-      cleanup();
-      reject(new Error("Tempo esgotado ao consultar a planilha."));
-    }, 10000);
+async function lerResposta(response) {
+  if (!response.ok) {
+    throw new Error(`Falha na comunicação (${response.status}).`);
+  }
 
-    function cleanup() {
-      window.clearTimeout(timeout);
-      delete window[callbackName];
-      script.remove();
-    }
+  const data = await response.json();
 
-    window[callbackName] = (data) => {
-      cleanup();
+  if (!data.ok) {
+    throw new Error(data.message || "Não foi possível concluir a operação.");
+  }
 
-      if (!data || !data.ok) {
-        reject(new Error(data?.message || "Não foi possível consultar a planilha."));
-        return;
-      }
-
-      resolve(data);
-    };
-
-    script.onerror = () => {
-      cleanup();
-      reject(new Error("Falha ao consultar a planilha."));
-    };
-
-    script.src = `${APPS_SCRIPT_URL}${separador}action=total&callback=${encodeURIComponent(callbackName)}&_=${Date.now()}`;
-    document.head.appendChild(script);
-  });
+  return data;
 }
 
 async function carregarTotal({ silencioso = false } = {}) {
@@ -84,13 +61,20 @@ async function carregarTotal({ silencioso = false } = {}) {
   }
 
   try {
-    const data = await consultarTotalViaJsonp();
+    const separador = APPS_SCRIPT_URL.includes("?") ? "&" : "?";
+    const response = await fetch(`${APPS_SCRIPT_URL}${separador}action=total&_=${Date.now()}`, {
+      method: "GET",
+      cache: "no-store",
+      redirect: "follow",
+    });
+
+    const data = await lerResposta(response);
     totalElement.textContent = formatarMO(data.total);
     return data;
   } catch (error) {
     console.error(error);
     if (!silencioso) {
-      definirStatus(error.message || "Não foi possível carregar o total da planilha.", "error");
+      definirStatus("Não foi possível carregar o total da planilha.", "error");
     }
     throw error;
   }
@@ -128,14 +112,14 @@ form.addEventListener("submit", async (event) => {
       maoObra: maoObra.toFixed(2),
     });
 
-    await fetch(APPS_SCRIPT_URL, {
+    const response = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
-      mode: "no-cors",
-      redirect: "follow",
       body,
+      redirect: "follow",
     });
 
-    await carregarTotal({ silencioso: true });
+    const data = await lerResposta(response);
+    totalElement.textContent = formatarMO(data.total);
 
     form.reset();
     ordemServicoInput.focus();

@@ -53,7 +53,13 @@ self.addEventListener("fetch", (event) => {
           caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
           return response;
         })
-        .catch(() => caches.match(request).then((cached) => cached || caches.match("./index.html")))
+        .catch(() => {
+          const fallback = url.pathname.endsWith("/historico.html")
+            ? "./historico.html"
+            : "./index.html";
+
+          return caches.match(request).then((cached) => cached || caches.match(fallback));
+        })
     );
     return;
   }

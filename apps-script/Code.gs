@@ -1,38 +1,52 @@
 const SPREADSHEET_ID = "COLE_AQUI_O_ID_DA_PLANILHA";
-const SHEET_NAME = "Registros";
+const NOME_ABA = "Registros";
 const TIME_ZONE = "America/Sao_Paulo";
-const EXPECTED_HEADER = ["Data e hora", "Ordem de serviço", "M.O"];
 
 function doGet(e) {
   try {
-    const sheet = getSheet_();
-    ensureHeader_(sheet);
+    const parametros = (e && e.parameter) || {};
+    const action = String(parametros.action || "resumo").toLowerCase();
 
-    const params = (e && e.parameter) || {};
-    const action = String(params.action || "resumo").toLowerCase();
+    const planilha = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const aba = obterAba_(planilha);
 
     if (action === "historico") {
-      const mes = Number(params.mes);
-      const ano = Number(params.ano);
-      return json_(buildDetailedHistory_(sheet, mes, ano));
+      const mes = Number(parametros.mes);
+      const ano = Number(parametros.ano);
+
+      return resposta({
+        ...buscarHistoricoDetalhado(aba, mes, ano),
+        ok: true
+      });
     }
 
     if (action === "resumo" || action === "total") {
-      return json_(buildSummary_(sheet));
+      const resumo = gerarResumo(aba);
+      return resposta({
+        ...resumo,
+        ok: true,
+        total: resumo.totalAtual,
+        history: resumo.ciclos.map((item) => ({
+          label: item.ciclo,
+          total: item.total,
+          current: item.ciclo === resumo.cicloAtual
+        }))
+      });
     }
 
-    return json_({
+    return resposta({
       sucesso: false,
       ok: false,
       erro: "Ação inválida.",
       message: "Ação inválida."
     });
-  } catch (error) {
-    return json_({
+
+  } catch (erro) {
+    return resposta({
       sucesso: false,
       ok: false,
-      erro: error.message,
-      message: error.message
+      erro: erro.message,
+      message: erro.message
     });
   }
 }
@@ -43,39 +57,66 @@ function doPost(e) {
   try {
     lock.waitLock(10000);
 
-    const sheet = getSheet_();
-    ensureHeader_(sheet);
+    const planilha = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const aba = obterAba_(planilha);
 
-    const params = getPostPayload_(e);
-    const ordemServico = String(params.os || params.ordemServico || "").trim();
-    const maoObra = Number(String(params.mo || params.maoObra || "").replace(",", "."));
+    let dados = {};
 
-    if (!ordemServico) {
-      throw new Error("Ordem de serviço é obrigatória.");
+    if (e && e.postData && e.postData.contents) {
+      try {
+        dados = JSON.parse(e.postData.contents);
+      } catch (erro) {
+        dados = (e && e.parameter) || {};
+      }
+    } else {
+      dados = (e && e.parameter) || {};
     }
 
-    if (!Number.isFinite(maoObra) || maoObra < 0) {
-      throw new Error("M.O inválida.");
+    const agora = new Date();
+    const os = String(dados.os || dados.ordemServico || "").trim();
+    const valorMO = String(dados.mo ?? dados.maoObra ?? "")
+      .trim()
+      .replace(",", ".");
+    const mo = Number(valorMO);
+
+    if (!os) {
+      throw new Error("Informe a Ordem de Serviço.");
     }
 
-    const nextRow = sheet.getLastRow() + 1;
-    sheet.getRange(nextRow, 1, 1, 3).setValues([[new Date(), ordemServico, maoObra]]);
-    sheet.getRange(nextRow, 1).setNumberFormat("dd/MM/yyyy HH:mm:ss");
-    sheet.getRange(nextRow, 3).setNumberFormat("0.00");
+    if (!Number.isFinite(mo) || mo < 0) {
+      throw new Error("Valor de M.O inválido.");
+    }
 
-    return json_({
+    const ciclo = calcularCiclo(agora);
+
+    aba.appendRow([
+      agora,
+      os,
+      mo,
+      ciclo
+    ]);
+
+    const ultimaLinha = aba.getLastRow();
+
+    aba.getRange(ultimaLinha, 1).setNumberFormat("dd/MM/yyyy HH:mm:ss");
+    aba.getRange(ultimaLinha, 3).setNumberFormat("0.00");
+
+    return resposta({
       sucesso: true,
       ok: true,
       mensagem: "Registro salvo com sucesso.",
-      message: "Registro salvo com sucesso."
+      message: "Registro salvo com sucesso.",
+      ciclo
     });
-  } catch (error) {
-    return json_({
+
+  } catch (erro) {
+    return resposta({
       sucesso: false,
       ok: false,
-      erro: error.message,
-      message: error.message
+      erro: erro.message,
+      message: erro.message
     });
+
   } finally {
     if (lock.hasLock()) {
       lock.releaseLock();
@@ -83,258 +124,245 @@ function doPost(e) {
   }
 }
 
-function getPostPayload_(e) {
-  if (e && e.postData && e.postData.contents) {
-    try {
-      const parsed = JSON.parse(e.postData.contents);
-      if (parsed && typeof parsed === "object") {
-        return parsed;
-      }
-    } catch (error) {
-      // Mantém compatibilidade com envios antigos via formulário.
-    }
-  }
-
-  return (e && e.parameter) || {};
-}
-
-function getSheet_() {
+function obterAba_(planilha) {
   if (!SPREADSHEET_ID || SPREADSHEET_ID === "COLE_AQUI_O_ID_DA_PLANILHA") {
     throw new Error("Configure o SPREADSHEET_ID no Apps Script.");
   }
 
-  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-  const namedSheet = spreadsheet.getSheetByName(SHEET_NAME);
+  let aba = planilha.getSheetByName(NOME_ABA);
 
-  if (namedSheet) {
-    return namedSheet;
+  if (!aba) {
+    aba = planilha.insertSheet(NOME_ABA);
   }
 
-  const sheets = spreadsheet.getSheets();
-  const matchingSheet = sheets.find((sheet) => hasExpectedHeader_(sheet));
-
-  if (matchingSheet) {
-    return matchingSheet;
+  if (aba.getLastRow() === 0) {
+    aba.appendRow([
+      "Data e Hora",
+      "Ordem de Serviço",
+      "M.O",
+      "Ciclo"
+    ]);
   }
 
-  if (sheets.length === 1 && sheets[0].getLastRow() === 0) {
-    sheets[0].setName(SHEET_NAME);
-    return sheets[0];
-  }
+  aba.setFrozenRows(1);
+  aba.getRange("A:A").setNumberFormat("dd/MM/yyyy HH:mm:ss");
+  aba.getRange("C:C").setNumberFormat("0.00");
 
-  return spreadsheet.insertSheet(SHEET_NAME);
+  return aba;
 }
 
-function hasExpectedHeader_(sheet) {
-  if (sheet.getLastRow() < 1 || sheet.getLastColumn() < EXPECTED_HEADER.length) {
-    return false;
+function gerarResumo(aba) {
+  const cicloAtual = calcularCiclo(new Date());
+
+  if (!aba || aba.getLastRow() < 2) {
+    return {
+      sucesso: true,
+      totalAtual: "0.00",
+      cicloAtual,
+      ciclos: []
+    };
   }
 
-  const values = sheet.getRange(1, 1, 1, EXPECTED_HEADER.length).getDisplayValues()[0];
-  return EXPECTED_HEADER.every((value, index) => String(values[index]).trim() === value);
-}
+  const dados = aba
+    .getRange(2, 1, aba.getLastRow() - 1, 3)
+    .getValues();
 
-function ensureHeader_(sheet) {
-  if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, EXPECTED_HEADER.length).setValues([EXPECTED_HEADER]);
-    sheet.getRange(1, 1, 1, EXPECTED_HEADER.length).setFontWeight("bold");
-    sheet.setFrozenRows(1);
-    sheet.getRange("A:A").setNumberFormat("dd/MM/yyyy HH:mm:ss");
-    sheet.getRange("C:C").setNumberFormat("0.00");
-    return;
-  }
+  const totais = {};
 
-  if (!hasExpectedHeader_(sheet)) {
-    throw new Error("A aba encontrada não possui os cabeçalhos esperados: Data e hora, Ordem de serviço e M.O.");
-  }
+  dados.forEach((linha) => {
+    const data = linha[0];
 
-  sheet.setFrozenRows(1);
-  sheet.getRange("A:A").setNumberFormat("dd/MM/yyyy HH:mm:ss");
-  sheet.getRange("C:C").setNumberFormat("0.00");
-}
+    if (!(data instanceof Date) || Number.isNaN(data.getTime())) {
+      return;
+    }
 
-function buildSummary_(sheet) {
-  const currentPeriod = getCurrentCycleInfo_();
-  const cycles = getHistory_(sheet, currentPeriod.key);
-  const current = cycles.find((cycle) => cycle.chave === currentPeriod.key);
-  const totalAtual = current ? current.total : "0.00";
+    const mo = Number(linha[2]);
+    const valor = Number.isFinite(mo) ? mo : 0;
+    const ciclo = calcularCiclo(data);
 
-  const legacyHistory = cycles.map((cycle) => ({
-    key: cycle.chave,
-    label: cycle.ciclo,
-    total: cycle.total,
-    current: cycle.chave === currentPeriod.key
-  }));
+    if (!totais[ciclo]) {
+      totais[ciclo] = {
+        total: 0,
+        timestamp: obterInicioCicloTimestamp(data)
+      };
+    }
+
+    totais[ciclo].total += valor;
+  });
+
+  const ciclos = Object.keys(totais)
+    .map((ciclo) => ({
+      ciclo,
+      total: totais[ciclo].total.toFixed(2),
+      timestamp: totais[ciclo].timestamp
+    }))
+    .sort((a, b) => b.timestamp - a.timestamp)
+    .map((item) => ({
+      ciclo: item.ciclo,
+      total: item.total
+    }));
 
   return {
     sucesso: true,
-    ok: true,
-    totalAtual,
-    cicloAtual: currentPeriod.label,
-    ciclos: cycles,
-    total: totalAtual,
-    period: {
-      key: currentPeriod.key,
-      start: currentPeriod.start,
-      end: currentPeriod.end,
-      label: currentPeriod.label
-    },
-    history: legacyHistory
+    cicloAtual,
+    totalAtual: totais[cicloAtual]
+      ? totais[cicloAtual].total.toFixed(2)
+      : "0.00",
+    ciclos
   };
 }
 
-function buildDetailedHistory_(sheet, endMonth, endYear) {
-  if (!Number.isInteger(endMonth) || endMonth < 1 || endMonth > 12) {
+function buscarHistoricoDetalhado(aba, mes, ano) {
+  if (!Number.isInteger(mes) || mes < 1 || mes > 12) {
     throw new Error("Mês inválido.");
   }
 
-  if (!Number.isInteger(endYear) || endYear < 2000 || endYear > 9999) {
+  if (!Number.isInteger(ano) || ano < 2000 || ano > 9999) {
     throw new Error("Ano inválido.");
   }
 
-  const cycleKey = getCycleKeyFromEndMonth_(endMonth, endYear);
-  const period = getCycleInfoFromKey_(cycleKey);
-  const lastRow = sheet.getLastRow();
-  const launches = [];
-  let total = 0;
+  const periodo = obterPeriodoPorMesAno(mes, ano);
+  const chaveSelecionada = obterChaveCicloPorMesAno_(mes, ano);
 
-  if (lastRow >= 2) {
-    const rows = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
-
-    rows.forEach((row) => {
-      const date = row[0];
-      const value = Number(row[2]);
-
-      if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-        return;
-      }
-
-      if (getCycleKey_(date) !== cycleKey) {
-        return;
-      }
-
-      const validValue = Number.isFinite(value) ? value : 0;
-      total += validValue;
-
-      launches.push({
-        timestamp: date.getTime(),
-        data: Utilities.formatDate(date, TIME_ZONE, "dd/MM/yyyy"),
-        hora: Utilities.formatDate(date, TIME_ZONE, "HH:mm:ss"),
-        os: String(row[1] == null ? "" : row[1]),
-        mo: validValue.toFixed(2)
-      });
-    });
+  if (!aba || aba.getLastRow() < 2) {
+    return {
+      sucesso: true,
+      periodo,
+      total: "0.00",
+      quantidade: 0,
+      lancamentos: []
+    };
   }
 
-  launches.sort((a, b) => b.timestamp - a.timestamp);
+  const dados = aba
+    .getRange(2, 1, aba.getLastRow() - 1, 3)
+    .getValues();
 
-  const cleanLaunches = launches.map((launch) => ({
-    data: launch.data,
-    hora: launch.hora,
-    os: launch.os,
-    mo: launch.mo
-  }));
+  const lancamentos = [];
+  let total = 0;
+
+  dados.forEach((linha) => {
+    const data = linha[0];
+
+    if (!(data instanceof Date) || Number.isNaN(data.getTime())) {
+      return;
+    }
+
+    if (obterChaveCicloDaData_(data) !== chaveSelecionada) {
+      return;
+    }
+
+    const moBruto = Number(linha[2]);
+    const mo = Number.isFinite(moBruto) ? moBruto : 0;
+
+    total += mo;
+
+    lancamentos.push({
+      timestamp: data.getTime(),
+      data: Utilities.formatDate(data, TIME_ZONE, "dd/MM/yyyy"),
+      hora: Utilities.formatDate(data, TIME_ZONE, "HH:mm:ss"),
+      os: String(linha[1] ?? ""),
+      mo: mo.toFixed(2)
+    });
+  });
+
+  lancamentos.sort((a, b) => b.timestamp - a.timestamp);
 
   return {
     sucesso: true,
-    ok: true,
-    periodo: {
-      mes: endMonth,
-      ano: endYear,
-      inicio: period.start,
-      fim: period.end,
-      label: period.label
-    },
+    periodo,
     total: total.toFixed(2),
-    quantidade: cleanLaunches.length,
-    lancamentos: cleanLaunches
+    quantidade: lancamentos.length,
+    lancamentos: lancamentos.map((item) => ({
+      data: item.data,
+      hora: item.hora,
+      os: item.os,
+      mo: item.mo
+    }))
   };
 }
 
-function getHistory_(sheet, currentCycleKey) {
-  const totals = {};
-  const lastRow = sheet.getLastRow();
-
-  if (lastRow >= 2) {
-    const rows = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
-
-    rows.forEach((row) => {
-      const date = row[0];
-      const value = Number(row[2]);
-
-      if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
-        return;
-      }
-
-      const key = getCycleKey_(date);
-      totals[key] = (totals[key] || 0) + (Number.isFinite(value) ? value : 0);
-    });
-  }
-
-  if (totals[currentCycleKey] === undefined) {
-    totals[currentCycleKey] = 0;
-  }
-
-  return Object.keys(totals)
-    .sort((a, b) => b.localeCompare(a))
-    .map((key) => {
-      const period = getCycleInfoFromKey_(key);
-      return {
-        chave: key,
-        ciclo: period.label,
-        total: totals[key].toFixed(2)
-      };
-    });
+function obterPeriodoPorMesAno(mes, ano) {
+  const chave = obterChaveCicloPorMesAno_(mes, ano);
+  return obterPeriodoPorChave_(chave, mes, ano);
 }
 
-function getCycleKeyFromEndMonth_(endMonth, endYear) {
-  let startMonth = endMonth - 1;
-  let startYear = endYear;
+function obterChaveCicloPorMesAno_(mesFinal, anoFinal) {
+  let mesInicio = mesFinal - 1;
+  let anoInicio = anoFinal;
 
-  if (startMonth === 0) {
-    startMonth = 12;
-    startYear -= 1;
+  if (mesInicio === 0) {
+    mesInicio = 12;
+    anoInicio -= 1;
   }
 
-  return `${startYear}-${String(startMonth).padStart(2, "0")}`;
+  return `${anoInicio}-${String(mesInicio).padStart(2, "0")}`;
 }
 
-function getCycleKey_(date) {
-  const localDate = Utilities.formatDate(date, TIME_ZONE, "yyyy-MM-dd");
-  const parts = localDate.split("-");
-  let year = Number(parts[0]);
-  let month = Number(parts[1]);
-  const day = Number(parts[2]);
+function obterChaveCicloDaData_(data) {
+  const partes = Utilities.formatDate(data, TIME_ZONE, "yyyy-MM-dd").split("-");
 
-  if (day < 26) {
-    month -= 1;
-    if (month === 0) {
-      month = 12;
-      year -= 1;
+  let ano = Number(partes[0]);
+  let mes = Number(partes[1]);
+  const dia = Number(partes[2]);
+
+  if (dia <= 25) {
+    mes -= 1;
+
+    if (mes === 0) {
+      mes = 12;
+      ano -= 1;
     }
   }
 
-  return `${year}-${String(month).padStart(2, "0")}`;
+  return `${ano}-${String(mes).padStart(2, "0")}`;
 }
 
-function getCycleInfoFromKey_(key) {
-  const parts = key.split("-");
-  const startYear = Number(parts[0]);
-  const startMonth = Number(parts[1]);
-  const endMonth = startMonth === 12 ? 1 : startMonth + 1;
-  const endYear = startMonth === 12 ? startYear + 1 : startYear;
-  const start = `26/${String(startMonth).padStart(2, "0")}/${startYear}`;
-  const end = `25/${String(endMonth).padStart(2, "0")}/${endYear}`;
+function obterPeriodoPorChave_(chave, mesFinal, anoFinal) {
+  const partes = chave.split("-");
+  const anoInicio = Number(partes[0]);
+  const mesInicio = Number(partes[1]);
 
-  return { key, start, end, label: `${start} a ${end}` };
+  const inicio = `26/${String(mesInicio).padStart(2, "0")}/${anoInicio}`;
+  const fim = `25/${String(mesFinal).padStart(2, "0")}/${anoFinal}`;
+
+  return {
+    mes: mesFinal,
+    ano: anoFinal,
+    inicio,
+    fim,
+    label: `${inicio} a ${fim}`
+  };
 }
 
-function getCurrentCycleInfo_() {
-  return getCycleInfoFromKey_(getCycleKey_(new Date()));
+function calcularCiclo(data) {
+  const chave = obterChaveCicloDaData_(data);
+  const partes = chave.split("-");
+  const anoInicio = Number(partes[0]);
+  const mesInicio = Number(partes[1]);
+
+  const mesFim = mesInicio === 12 ? 1 : mesInicio + 1;
+  const anoFim = mesInicio === 12 ? anoInicio + 1 : anoInicio;
+
+  const inicio = `26/${String(mesInicio).padStart(2, "0")}/${anoInicio}`;
+  const fim = `25/${String(mesFim).padStart(2, "0")}/${anoFim}`;
+
+  return `${inicio} a ${fim}`;
 }
 
-function json_(payload) {
+function obterInicioCicloTimestamp(data) {
+  const chave = obterChaveCicloDaData_(data);
+  const partes = chave.split("-");
+
+  return new Date(
+    Number(partes[0]),
+    Number(partes[1]) - 1,
+    26
+  ).getTime();
+}
+
+function resposta(objeto) {
   return ContentService
-    .createTextOutput(JSON.stringify(payload))
+    .createTextOutput(JSON.stringify(objeto))
     .setMimeType(ContentService.MimeType.JSON);
 }

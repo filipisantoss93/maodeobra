@@ -22,40 +22,32 @@
       <section class="total-card" aria-live="polite">
         <span>Total de M.O do período atual</span>
         <strong id="total-mo">0.00</strong>
+        <small id="periodo-atual" class="period-label"></small>
       </section>
 
       <form id="registro-form" class="form-card" novalidate>
         <div class="field-group">
           <label for="ordem-servico">Ordem de serviço</label>
-          <input
-            id="ordem-servico"
-            name="ordemServico"
-            type="text"
-            inputmode="numeric"
-            autocomplete="off"
-            placeholder="Ex.: 12345"
-            maxlength="40"
-            required
-          >
+          <input id="ordem-servico" name="ordemServico" type="text" inputmode="numeric" autocomplete="off" placeholder="Ex.: 12345" maxlength="40" required>
         </div>
 
         <div class="field-group">
           <label for="mao-obra">Quantidade de M.O</label>
-          <input
-            id="mao-obra"
-            name="maoObra"
-            type="text"
-            inputmode="decimal"
-            autocomplete="off"
-            placeholder="0.00"
-            required
-          >
+          <input id="mao-obra" name="maoObra" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" required>
           <small>Use valores como 1.50, 2.00 ou 0.75.</small>
         </div>
 
         <button id="btn-registrar" type="submit">REGISTRAR</button>
         <p id="status" class="status" role="status" aria-live="polite"></p>
       </form>
+
+      <section class="history-section" aria-labelledby="history-title">
+        <p class="eyebrow">FECHAMENTOS</p>
+        <h2 id="history-title">Histórico por ciclo</h2>
+        <div id="history-list" class="history-list" aria-live="polite">
+          <p class="history-empty">Nenhum ciclo registrado ainda.</p>
+        </div>
+      </section>
     </section>
   </main>
 

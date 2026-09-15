@@ -1,4 +1,4 @@
-const APPS_SCRIPT_URL = "";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzGapYoaMUO-RPQDEBtk6JKL9IWGyXPFh8rIipSrD7TiSnfhPg0r7WbvyER3RqnNiGR/exec";
 
 const form = document.querySelector("#registro-form");
 const ordemServicoInput = document.querySelector("#ordem-servico");
@@ -40,15 +40,15 @@ function definirCarregando(carregando) {
 }
 
 function renderizarResumo(data) {
-  totalElement.textContent = formatarMO(data.total);
-  periodoElement.textContent = data.period?.label || "";
-  renderizarHistorico(data.history || []);
+  totalElement.textContent = formatarMO(data.totalAtual);
+  periodoElement.textContent = data.cicloAtual || "";
+  renderizarHistorico(data.ciclos || [], data.cicloAtual);
 }
 
-function renderizarHistorico(history) {
+function renderizarHistorico(ciclos, cicloAtual) {
   historyList.replaceChildren();
 
-  if (!history.length) {
+  if (!Array.isArray(ciclos) || !ciclos.length) {
     const empty = document.createElement("p");
     empty.className = "history-empty";
     empty.textContent = "Nenhum ciclo registrado ainda.";
@@ -56,19 +56,19 @@ function renderizarHistorico(history) {
     return;
   }
 
-  history.forEach((cycle) => {
+  ciclos.forEach((cycle) => {
+    const atual = cycle.ciclo === cicloAtual;
     const item = document.createElement("article");
-    item.className = `history-item${cycle.current ? " current" : ""}`;
+    item.className = `history-item${atual ? " current" : ""}`;
 
     const info = document.createElement("div");
     info.className = "history-info";
 
     const period = document.createElement("strong");
-    period.textContent = cycle.label;
-
+    period.textContent = cycle.ciclo || "Ciclo";
     info.appendChild(period);
 
-    if (cycle.current) {
+    if (atual) {
       const badge = document.createElement("span");
       badge.className = "current-badge";
       badge.textContent = "ATUAL";
@@ -91,25 +91,16 @@ async function lerResposta(response) {
 
   const data = await response.json();
 
-  if (!data.ok) {
-    throw new Error(data.message || "Não foi possível concluir a operação.");
+  if (!data.sucesso) {
+    throw new Error(data.erro || "Não foi possível concluir a operação.");
   }
 
   return data;
 }
 
 async function carregarTotal({ silencioso = false } = {}) {
-  if (!APPS_SCRIPT_URL) {
-    renderizarResumo({ total: "0.00", history: [] });
-    if (!silencioso) {
-      definirStatus("Integração com a planilha ainda não configurada.");
-    }
-    return null;
-  }
-
   try {
-    const separador = APPS_SCRIPT_URL.includes("?") ? "&" : "?";
-    const response = await fetch(`${APPS_SCRIPT_URL}${separador}action=total&_=${Date.now()}`, {
+    const response = await fetch(`${APPS_SCRIPT_URL}?_=${Date.now()}`, {
       method: "GET",
       cache: "no-store",
       redirect: "follow",
@@ -146,31 +137,26 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-  if (!APPS_SCRIPT_URL) {
-    definirStatus("Configure a URL do Google Apps Script em app.js.", "error");
-    return;
-  }
-
   definirCarregando(true);
+  definirStatus("Enviando para a planilha...");
 
   try {
-    const body = new URLSearchParams({
-      ordemServico,
-      maoObra: maoObra.toFixed(2),
-    });
-
     const response = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
-      body,
       redirect: "follow",
+      body: JSON.stringify({
+        os: ordemServico,
+        mo: maoObra.toFixed(2),
+      }),
     });
 
-    const data = await lerResposta(response);
-    renderizarResumo(data);
+    await lerResposta(response);
 
     form.reset();
     ordemServicoInput.focus();
     definirStatus("Registro salvo com sucesso.", "success");
+
+    await carregarTotal({ silencioso: true });
   } catch (error) {
     console.error(error);
     definirStatus(error.message || "Erro ao registrar. Tente novamente.", "error");
@@ -186,4 +172,4 @@ maoObraInput.addEventListener("blur", () => {
   }
 });
 
-carregarTotal();
+carregarTotal().catch(() => {});

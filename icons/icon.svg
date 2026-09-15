@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Mão de Obra">
+  <rect width="512" height="512" rx="112" fill="#071b33"/>
+  <rect x="52" y="52" width="408" height="408" rx="92" fill="#0b2a4d"/>
+  <rect x="82" y="82" width="348" height="348" rx="72" fill="none" stroke="#2f80ed" stroke-width="18"/>
+  <g fill="#fff" transform="rotate(-45 256 256)">
+    <rect x="238" y="126" width="36" height="242" rx="18"/>
+    <circle cx="256" cy="378" r="48"/>
+    <circle cx="256" cy="378" r="22" fill="#0b2a4d"/>
+    <path d="M204 132 230 90l26 30 26-30 26 42-26 44h-52z"/>
+  </g>
+  <rect x="133" y="294" width="246" height="102" rx="30" fill="#071b33"/>
+  <text x="256" y="368" text-anchor="middle" fill="#fff" font-family="Arial,Helvetica,sans-serif" font-size="92" font-weight="800" letter-spacing="-4">MO</text>
+</svg>

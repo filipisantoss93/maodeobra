@@ -7,15 +7,22 @@ function doGet(e) {
     const sheet = getSheet_();
     ensureHeader_(sheet);
 
-    const action = String((e && e.parameter && e.parameter.action) || "total").toLowerCase();
+    const params = (e && e.parameter) || {};
+    const action = String(params.action || "resumo").toLowerCase();
 
-    if (action !== "total") {
-      return json_({ ok: false, message: "Ação inválida." });
+    if (action === "historico") {
+      const mes = Number(params.mes);
+      const ano = Number(params.ano);
+      return json_(buildDetailedHistory_(sheet, mes, ano));
     }
 
-    return json_(buildSummary_(sheet));
+    if (action === "resumo" || action === "total") {
+      return json_(buildSummary_(sheet));
+    }
+
+    return json_({ sucesso: false, erro: "Ação inválida." });
   } catch (error) {
-    return json_({ ok: false, message: error.message });
+    return json_({ sucesso: false, erro: error.message });
   }
 }
 
@@ -28,9 +35,9 @@ function doPost(e) {
     const sheet = getSheet_();
     ensureHeader_(sheet);
 
-    const params = (e && e.parameter) || {};
-    const ordemServico = String(params.ordemServico || "").trim();
-    const maoObra = Number(String(params.maoObra || "").replace(",", "."));
+    const params = getPostPayload_(e);
+    const ordemServico = String(params.os || params.ordemServico || "").trim();
+    const maoObra = Number(String(params.mo || params.maoObra || "").replace(",", "."));
 
     if (!ordemServico) {
       throw new Error("Ordem de serviço é obrigatória.");
@@ -45,16 +52,32 @@ function doPost(e) {
     sheet.getRange(nextRow, 1).setNumberFormat("dd/MM/yyyy HH:mm:ss");
     sheet.getRange(nextRow, 3).setNumberFormat("0.00");
 
-    const summary = buildSummary_(sheet);
-    summary.message = "Registro salvo com sucesso.";
-    return json_(summary);
+    return json_({
+      sucesso: true,
+      mensagem: "Registro salvo com sucesso."
+    });
   } catch (error) {
-    return json_({ ok: false, message: error.message });
+    return json_({ sucesso: false, erro: error.message });
   } finally {
     if (lock.hasLock()) {
       lock.releaseLock();
     }
   }
+}
+
+function getPostPayload_(e) {
+  if (e && e.postData && e.postData.contents) {
+    try {
+      const parsed = JSON.parse(e.postData.contents);
+      if (parsed && typeof parsed === "object") {
+        return parsed;
+      }
+    } catch (error) {
+      // Mantém compatibilidade com envios antigos via formulário.
+    }
+  }
+
+  return (e && e.parameter) || {};
 }
 
 function getSheet_() {
@@ -95,15 +118,82 @@ function ensureHeader_(sheet) {
 }
 
 function buildSummary_(sheet) {
-  const period = getCurrentCycleInfo_();
-  const history = getHistory_(sheet, period.key);
-  const current = history.find((cycle) => cycle.key === period.key);
+  const currentPeriod = getCurrentCycleInfo_();
+  const cycles = getHistory_(sheet, currentPeriod.key);
+  const current = cycles.find((cycle) => cycle.chave === currentPeriod.key);
 
   return {
-    ok: true,
-    total: current ? current.total : "0.00",
-    period,
-    history,
+    sucesso: true,
+    totalAtual: current ? current.total : "0.00",
+    cicloAtual: currentPeriod.label,
+    ciclos: cycles
+  };
+}
+
+function buildDetailedHistory_(sheet, endMonth, endYear) {
+  if (!Number.isInteger(endMonth) || endMonth < 1 || endMonth > 12) {
+    throw new Error("Mês inválido.");
+  }
+
+  if (!Number.isInteger(endYear) || endYear < 2000 || endYear > 9999) {
+    throw new Error("Ano inválido.");
+  }
+
+  const cycleKey = getCycleKeyFromEndMonth_(endMonth, endYear);
+  const period = getCycleInfoFromKey_(cycleKey);
+  const lastRow = sheet.getLastRow();
+  const launches = [];
+  let total = 0;
+
+  if (lastRow >= 2) {
+    const rows = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+
+    rows.forEach((row) => {
+      const date = row[0];
+      const value = Number(row[2]);
+
+      if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+        return;
+      }
+
+      if (getCycleKey_(date) !== cycleKey) {
+        return;
+      }
+
+      const validValue = Number.isFinite(value) ? value : 0;
+      total += validValue;
+
+      launches.push({
+        timestamp: date.getTime(),
+        data: Utilities.formatDate(date, TIME_ZONE, "dd/MM/yyyy"),
+        hora: Utilities.formatDate(date, TIME_ZONE, "HH:mm:ss"),
+        os: String(row[1] == null ? "" : row[1]),
+        mo: validValue.toFixed(2)
+      });
+    });
+  }
+
+  launches.sort((a, b) => b.timestamp - a.timestamp);
+
+  const cleanLaunches = launches.map((launch) => ({
+    data: launch.data,
+    hora: launch.hora,
+    os: launch.os,
+    mo: launch.mo
+  }));
+
+  return {
+    sucesso: true,
+    periodo: {
+      mes: endMonth,
+      ano: endYear,
+      inicio: period.start,
+      fim: period.end,
+      label: period.label
+    },
+    total: total.toFixed(2),
+    quantidade: cleanLaunches.length,
+    lancamentos: cleanLaunches
   };
 }
 
@@ -136,14 +226,23 @@ function getHistory_(sheet, currentCycleKey) {
     .map((key) => {
       const period = getCycleInfoFromKey_(key);
       return {
-        key,
-        start: period.start,
-        end: period.end,
-        label: period.label,
-        total: totals[key].toFixed(2),
-        current: key === currentCycleKey,
+        chave: key,
+        ciclo: period.label,
+        total: totals[key].toFixed(2)
       };
     });
+}
+
+function getCycleKeyFromEndMonth_(endMonth, endYear) {
+  let startMonth = endMonth - 1;
+  let startYear = endYear;
+
+  if (startMonth === 0) {
+    startMonth = 12;
+    startYear -= 1;
+  }
+
+  return `${startYear}-${String(startMonth).padStart(2, "0")}`;
 }
 
 function getCycleKey_(date) {

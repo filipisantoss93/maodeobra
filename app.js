@@ -37,38 +37,62 @@ function definirCarregando(carregando) {
   submitButton.textContent = carregando ? "REGISTRANDO..." : "REGISTRAR";
 }
 
-async function lerResposta(response) {
-  if (!response.ok) {
-    throw new Error(`Falha na comunicação (${response.status}).`);
-  }
+function consultarTotalViaJsonp() {
+  return new Promise((resolve, reject) => {
+    const callbackName = `moCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const script = document.createElement("script");
+    const separador = APPS_SCRIPT_URL.includes("?") ? "&" : "?";
+    const timeout = window.setTimeout(() => {
+      cleanup();
+      reject(new Error("Tempo esgotado ao consultar a planilha."));
+    }, 10000);
 
-  const data = await response.json();
+    function cleanup() {
+      window.clearTimeout(timeout);
+      delete window[callbackName];
+      script.remove();
+    }
 
-  if (!data.ok) {
-    throw new Error(data.message || "Não foi possível concluir a operação.");
-  }
+    window[callbackName] = (data) => {
+      cleanup();
 
-  return data;
+      if (!data || !data.ok) {
+        reject(new Error(data?.message || "Não foi possível consultar a planilha."));
+        return;
+      }
+
+      resolve(data);
+    };
+
+    script.onerror = () => {
+      cleanup();
+      reject(new Error("Falha ao consultar a planilha."));
+    };
+
+    script.src = `${APPS_SCRIPT_URL}${separador}action=total&callback=${encodeURIComponent(callbackName)}&_=${Date.now()}`;
+    document.head.appendChild(script);
+  });
 }
 
-async function carregarTotal() {
+async function carregarTotal({ silencioso = false } = {}) {
   if (!APPS_SCRIPT_URL) {
     totalElement.textContent = "0.00";
-    definirStatus("Integração com a planilha ainda não configurada.");
-    return;
+    if (!silencioso) {
+      definirStatus("Integração com a planilha ainda não configurada.");
+    }
+    return null;
   }
 
   try {
-    const separador = APPS_SCRIPT_URL.includes("?") ? "&" : "?";
-    const response = await fetch(`${APPS_SCRIPT_URL}${separador}action=total`, {
-      method: "GET",
-      cache: "no-store",
-    });
-    const data = await lerResposta(response);
+    const data = await consultarTotalViaJsonp();
     totalElement.textContent = formatarMO(data.total);
+    return data;
   } catch (error) {
     console.error(error);
-    definirStatus("Não foi possível carregar o total da planilha.", "error");
+    if (!silencioso) {
+      definirStatus(error.message || "Não foi possível carregar o total da planilha.", "error");
+    }
+    throw error;
   }
 }
 
@@ -104,14 +128,15 @@ form.addEventListener("submit", async (event) => {
       maoObra: maoObra.toFixed(2),
     });
 
-    const response = await fetch(APPS_SCRIPT_URL, {
+    await fetch(APPS_SCRIPT_URL, {
       method: "POST",
+      mode: "no-cors",
+      redirect: "follow",
       body,
     });
 
-    const data = await lerResposta(response);
+    await carregarTotal({ silencioso: true });
 
-    totalElement.textContent = formatarMO(data.total);
     form.reset();
     ordemServicoInput.focus();
     definirStatus("Registro salvo com sucesso.", "success");

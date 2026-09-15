@@ -1,4 +1,4 @@
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzGapYoaMUO-RPQDEBtk6JKL9IWGyXPFh8rIipSrD7TiSnfhPg0r7WbvyER3RqnNiGR/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXN2y03f4L8cRwLXePmqubpHFYCTyn54kfr3YBKS13JCxYuX5OAa9v-_X92bDVpJ18/exec";
 
 const form = document.querySelector("#registro-form");
 const ordemServicoInput = document.querySelector("#ordem-servico");

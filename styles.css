@@ -82,11 +82,19 @@ input {
   color: var(--blue-500);
 }
 
-h1 {
+h1,
+h2 {
   margin: 0;
+  color: var(--navy-900);
+}
+
+h1 {
   font-size: clamp(1.65rem, 6vw, 2rem);
   line-height: 1.05;
-  color: var(--navy-900);
+}
+
+h2 {
+  font-size: 1.1rem;
 }
 
 .total-card {
@@ -110,6 +118,12 @@ h1 {
   line-height: 1;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.04em;
+}
+
+.total-card .period-label {
+  margin-top: 9px;
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.76rem;
 }
 
 .form-card {
@@ -202,6 +216,75 @@ button:disabled {
   color: var(--danger);
 }
 
+.history-section {
+  padding: 22px 24px 26px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-soft);
+}
+
+.history-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 13px 14px;
+  border: 1px solid var(--border);
+  border-radius: 13px;
+  background: #fff;
+}
+
+.history-item.current {
+  border-color: rgba(47, 128, 237, 0.42);
+  box-shadow: inset 3px 0 0 var(--blue-500);
+}
+
+.history-info {
+  min-width: 0;
+}
+
+.history-info > strong {
+  display: block;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.current-badge {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 3px 7px;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.06em;
+  color: var(--blue-500);
+  background: rgba(47, 128, 237, 0.1);
+}
+
+.history-total {
+  flex: 0 0 auto;
+  font-size: 1.1rem;
+  color: var(--navy-900);
+  font-variant-numeric: tabular-nums;
+}
+
+.history-empty {
+  margin: 0;
+  padding: 14px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+  background: #fff;
+}
+
 @media (max-width: 420px) {
   .page-shell {
     padding-left: 12px;
@@ -220,7 +303,13 @@ button:disabled {
     margin: 2px 18px 18px;
   }
 
-  .form-card {
-    padding: 0 18px 22px;
+  .form-card,
+  .history-section {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .history-item {
+    padding: 12px;
   }
 }

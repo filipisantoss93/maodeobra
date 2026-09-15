@@ -99,6 +99,13 @@ async function lerResposta(response) {
 }
 
 async function carregarTotal({ silencioso = false } = {}) {
+  if (!navigator.onLine) {
+    if (!silencioso) {
+      definirStatus("Sem internet. A tela está disponível, mas os dados da planilha exigem conexão.", "error");
+    }
+    return null;
+  }
+
   try {
     const response = await fetch(`${APPS_SCRIPT_URL}?_=${Date.now()}`, {
       method: "GET",
@@ -121,6 +128,11 @@ async function carregarTotal({ silencioso = false } = {}) {
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   definirStatus();
+
+  if (!navigator.onLine) {
+    definirStatus("Sem internet. Conecte-se para registrar na planilha.", "error");
+    return;
+  }
 
   const ordemServico = ordemServicoInput.value.trim();
   const maoObra = converterMO(maoObraInput.value);
@@ -171,5 +183,22 @@ maoObraInput.addEventListener("blur", () => {
     maoObraInput.value = valor.toFixed(2);
   }
 });
+
+window.addEventListener("online", () => {
+  definirStatus("Conexão restabelecida.", "success");
+  carregarTotal({ silencioso: true }).catch(() => {});
+});
+
+window.addEventListener("offline", () => {
+  definirStatus("Sem internet. A tela continua disponível, mas o registro está temporariamente indisponível.", "error");
+});
+
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch((error) => {
+      console.error("Falha ao registrar o service worker:", error);
+    });
+  });
+}
 
 carregarTotal().catch(() => {});

@@ -20,9 +20,19 @@ function doGet(e) {
       return json_(buildSummary_(sheet));
     }
 
-    return json_({ sucesso: false, erro: "Ação inválida." });
+    return json_({
+      sucesso: false,
+      ok: false,
+      erro: "Ação inválida.",
+      message: "Ação inválida."
+    });
   } catch (error) {
-    return json_({ sucesso: false, erro: error.message });
+    return json_({
+      sucesso: false,
+      ok: false,
+      erro: error.message,
+      message: error.message
+    });
   }
 }
 
@@ -54,10 +64,17 @@ function doPost(e) {
 
     return json_({
       sucesso: true,
-      mensagem: "Registro salvo com sucesso."
+      ok: true,
+      mensagem: "Registro salvo com sucesso.",
+      message: "Registro salvo com sucesso."
     });
   } catch (error) {
-    return json_({ sucesso: false, erro: error.message });
+    return json_({
+      sucesso: false,
+      ok: false,
+      erro: error.message,
+      message: error.message
+    });
   } finally {
     if (lock.hasLock()) {
       lock.releaseLock();
@@ -121,12 +138,29 @@ function buildSummary_(sheet) {
   const currentPeriod = getCurrentCycleInfo_();
   const cycles = getHistory_(sheet, currentPeriod.key);
   const current = cycles.find((cycle) => cycle.chave === currentPeriod.key);
+  const totalAtual = current ? current.total : "0.00";
+
+  const legacyHistory = cycles.map((cycle) => ({
+    key: cycle.chave,
+    label: cycle.ciclo,
+    total: cycle.total,
+    current: cycle.chave === currentPeriod.key
+  }));
 
   return {
     sucesso: true,
-    totalAtual: current ? current.total : "0.00",
+    ok: true,
+    totalAtual,
     cicloAtual: currentPeriod.label,
-    ciclos: cycles
+    ciclos: cycles,
+    total: totalAtual,
+    period: {
+      key: currentPeriod.key,
+      start: currentPeriod.start,
+      end: currentPeriod.end,
+      label: currentPeriod.label
+    },
+    history: legacyHistory
   };
 }
 
@@ -184,6 +218,7 @@ function buildDetailedHistory_(sheet, endMonth, endYear) {
 
   return {
     sucesso: true,
+    ok: true,
     periodo: {
       mes: endMonth,
       ano: endYear,

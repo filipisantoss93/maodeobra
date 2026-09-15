@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#071b33">
+  <meta name="description" content="Registro simples de ordem de serviço e mão de obra.">
+  <title>Mão de Obra</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="page-shell">
+    <section class="app-card" aria-labelledby="page-title">
+      <header class="app-header">
+        <div class="brand-mark" aria-hidden="true">MO</div>
+        <div>
+          <p class="eyebrow">CONTROLE DE SERVIÇOS</p>
+          <h1 id="page-title">Mão de Obra</h1>
+        </div>
+      </header>
+
+      <section class="total-card" aria-live="polite">
+        <span>Total de M.O registrada</span>
+        <strong id="total-mo">0.00</strong>
+      </section>
+
+      <form id="registro-form" class="form-card" novalidate>
+        <div class="field-group">
+          <label for="ordem-servico">Ordem de serviço</label>
+          <input
+            id="ordem-servico"
+            name="ordemServico"
+            type="text"
+            inputmode="numeric"
+            autocomplete="off"
+            placeholder="Ex.: 12345"
+            maxlength="40"
+            required
+          >
+        </div>
+
+        <div class="field-group">
+          <label for="mao-obra">Quantidade de M.O</label>
+          <input
+            id="mao-obra"
+            name="maoObra"
+            type="text"
+            inputmode="decimal"
+            autocomplete="off"
+            placeholder="0.00"
+            required
+          >
+          <small>Use valores como 1.50, 2.00 ou 0.75.</small>
+        </div>
+
+        <button id="btn-registrar" type="submit">REGISTRAR</button>
+        <p id="status" class="status" role="status" aria-live="polite"></p>
+      </form>
+    </section>
+  </main>
+
+  <script src="app.js" defer></script>
+</body>
+</html>

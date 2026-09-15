@@ -4,6 +4,8 @@ const form = document.querySelector("#registro-form");
 const ordemServicoInput = document.querySelector("#ordem-servico");
 const maoObraInput = document.querySelector("#mao-obra");
 const totalElement = document.querySelector("#total-mo");
+const periodoElement = document.querySelector("#periodo-atual");
+const historyList = document.querySelector("#history-list");
 const statusElement = document.querySelector("#status");
 const submitButton = document.querySelector("#btn-registrar");
 
@@ -37,6 +39,51 @@ function definirCarregando(carregando) {
   submitButton.textContent = carregando ? "REGISTRANDO..." : "REGISTRAR";
 }
 
+function renderizarResumo(data) {
+  totalElement.textContent = formatarMO(data.total);
+  periodoElement.textContent = data.period?.label || "";
+  renderizarHistorico(data.history || []);
+}
+
+function renderizarHistorico(history) {
+  historyList.replaceChildren();
+
+  if (!history.length) {
+    const empty = document.createElement("p");
+    empty.className = "history-empty";
+    empty.textContent = "Nenhum ciclo registrado ainda.";
+    historyList.appendChild(empty);
+    return;
+  }
+
+  history.forEach((cycle) => {
+    const item = document.createElement("article");
+    item.className = `history-item${cycle.current ? " current" : ""}`;
+
+    const info = document.createElement("div");
+    info.className = "history-info";
+
+    const period = document.createElement("strong");
+    period.textContent = cycle.label;
+
+    info.appendChild(period);
+
+    if (cycle.current) {
+      const badge = document.createElement("span");
+      badge.className = "current-badge";
+      badge.textContent = "ATUAL";
+      info.appendChild(badge);
+    }
+
+    const total = document.createElement("strong");
+    total.className = "history-total";
+    total.textContent = formatarMO(cycle.total);
+
+    item.append(info, total);
+    historyList.appendChild(item);
+  });
+}
+
 async function lerResposta(response) {
   if (!response.ok) {
     throw new Error(`Falha na comunicação (${response.status}).`);
@@ -53,7 +100,7 @@ async function lerResposta(response) {
 
 async function carregarTotal({ silencioso = false } = {}) {
   if (!APPS_SCRIPT_URL) {
-    totalElement.textContent = "0.00";
+    renderizarResumo({ total: "0.00", history: [] });
     if (!silencioso) {
       definirStatus("Integração com a planilha ainda não configurada.");
     }
@@ -69,12 +116,12 @@ async function carregarTotal({ silencioso = false } = {}) {
     });
 
     const data = await lerResposta(response);
-    totalElement.textContent = formatarMO(data.total);
+    renderizarResumo(data);
     return data;
   } catch (error) {
     console.error(error);
     if (!silencioso) {
-      definirStatus("Não foi possível carregar o total da planilha.", "error");
+      definirStatus("Não foi possível carregar os dados da planilha.", "error");
     }
     throw error;
   }
@@ -119,7 +166,7 @@ form.addEventListener("submit", async (event) => {
     });
 
     const data = await lerResposta(response);
-    totalElement.textContent = formatarMO(data.total);
+    renderizarResumo(data);
 
     form.reset();
     ordemServicoInput.focus();

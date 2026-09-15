@@ -39,10 +39,34 @@ function definirCarregando(carregando) {
   submitButton.textContent = carregando ? "REGISTRANDO..." : "REGISTRAR";
 }
 
+function normalizarResumo(data) {
+  const periodoLegado = data.period || {};
+  const ciclosOriginais = Array.isArray(data.ciclos)
+    ? data.ciclos
+    : Array.isArray(data.history)
+      ? data.history
+      : [];
+
+  const cicloAtual = data.cicloAtual || periodoLegado.label || "";
+
+  const ciclos = ciclosOriginais.map((cycle) => ({
+    ciclo: cycle.ciclo || cycle.label || "Ciclo",
+    total: cycle.total,
+    current: cycle.current === true || (cycle.ciclo || cycle.label) === cicloAtual,
+  }));
+
+  return {
+    totalAtual: data.totalAtual ?? data.total ?? "0.00",
+    cicloAtual,
+    ciclos,
+  };
+}
+
 function renderizarResumo(data) {
-  totalElement.textContent = formatarMO(data.totalAtual);
-  periodoElement.textContent = data.cicloAtual || "";
-  renderizarHistorico(data.ciclos || [], data.cicloAtual);
+  const resumo = normalizarResumo(data);
+  totalElement.textContent = formatarMO(resumo.totalAtual);
+  periodoElement.textContent = resumo.cicloAtual;
+  renderizarHistorico(resumo.ciclos, resumo.cicloAtual);
 }
 
 function renderizarHistorico(ciclos, cicloAtual) {
@@ -57,7 +81,7 @@ function renderizarHistorico(ciclos, cicloAtual) {
   }
 
   ciclos.forEach((cycle) => {
-    const atual = cycle.ciclo === cicloAtual;
+    const atual = cycle.current === true || cycle.ciclo === cicloAtual;
     const item = document.createElement("article");
     item.className = `history-item${atual ? " current" : ""}`;
 
@@ -89,10 +113,18 @@ async function lerResposta(response) {
     throw new Error(`Falha na comunicação (${response.status}).`);
   }
 
-  const data = await response.json();
+  let data;
 
-  if (!data.sucesso) {
-    throw new Error(data.erro || "Não foi possível concluir a operação.");
+  try {
+    data = await response.json();
+  } catch (error) {
+    throw new Error("O Apps Script não retornou JSON. Verifique a implantação e o acesso como 'Qualquer pessoa'.");
+  }
+
+  const sucesso = data.sucesso ?? data.ok;
+
+  if (!sucesso) {
+    throw new Error(data.erro || data.message || "Não foi possível concluir a operação.");
   }
 
   return data;
@@ -107,7 +139,7 @@ async function carregarTotal({ silencioso = false } = {}) {
   }
 
   try {
-    const response = await fetch(`${APPS_SCRIPT_URL}?_=${Date.now()}`, {
+    const response = await fetch(`${APPS_SCRIPT_URL}?action=resumo&_=${Date.now()}`, {
       method: "GET",
       cache: "no-store",
       redirect: "follow",
@@ -119,7 +151,7 @@ async function carregarTotal({ silencioso = false } = {}) {
   } catch (error) {
     console.error(error);
     if (!silencioso) {
-      definirStatus("Não foi possível carregar os dados da planilha.", "error");
+      definirStatus(error.message || "Não foi possível carregar os dados da planilha.", "error");
     }
     throw error;
   }

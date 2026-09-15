@@ -1,6 +1,7 @@
 const SPREADSHEET_ID = "COLE_AQUI_O_ID_DA_PLANILHA";
 const SHEET_NAME = "Registros";
 const TIME_ZONE = "America/Sao_Paulo";
+const EXPECTED_HEADER = ["Data e hora", "Ordem de serviço", "M.O"];
 
 function doGet(e) {
   try {
@@ -103,35 +104,53 @@ function getSheet_() {
   }
 
   const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
-  let sheet = spreadsheet.getSheetByName(SHEET_NAME);
+  const namedSheet = spreadsheet.getSheetByName(SHEET_NAME);
 
-  if (!sheet) {
-    sheet = spreadsheet.insertSheet(SHEET_NAME);
+  if (namedSheet) {
+    return namedSheet;
   }
 
-  return sheet;
+  const sheets = spreadsheet.getSheets();
+  const matchingSheet = sheets.find((sheet) => hasExpectedHeader_(sheet));
+
+  if (matchingSheet) {
+    return matchingSheet;
+  }
+
+  if (sheets.length === 1 && sheets[0].getLastRow() === 0) {
+    sheets[0].setName(SHEET_NAME);
+    return sheets[0];
+  }
+
+  return spreadsheet.insertSheet(SHEET_NAME);
+}
+
+function hasExpectedHeader_(sheet) {
+  if (sheet.getLastRow() < 1 || sheet.getLastColumn() < EXPECTED_HEADER.length) {
+    return false;
+  }
+
+  const values = sheet.getRange(1, 1, 1, EXPECTED_HEADER.length).getDisplayValues()[0];
+  return EXPECTED_HEADER.every((value, index) => String(values[index]).trim() === value);
 }
 
 function ensureHeader_(sheet) {
-  const header = ["Data e hora", "Ordem de serviço", "M.O"];
-
   if (sheet.getLastRow() === 0) {
-    sheet.getRange(1, 1, 1, header.length).setValues([header]);
-    sheet.getRange(1, 1, 1, header.length).setFontWeight("bold");
+    sheet.getRange(1, 1, 1, EXPECTED_HEADER.length).setValues([EXPECTED_HEADER]);
+    sheet.getRange(1, 1, 1, EXPECTED_HEADER.length).setFontWeight("bold");
     sheet.setFrozenRows(1);
     sheet.getRange("A:A").setNumberFormat("dd/MM/yyyy HH:mm:ss");
     sheet.getRange("C:C").setNumberFormat("0.00");
     return;
   }
 
-  const currentHeader = sheet.getRange(1, 1, 1, header.length).getDisplayValues()[0];
-  const headerIsCorrect = header.every((value, index) => currentHeader[index] === value);
-
-  if (!headerIsCorrect) {
-    sheet.getRange(1, 1, 1, header.length).setValues([header]);
-    sheet.getRange(1, 1, 1, header.length).setFontWeight("bold");
-    sheet.setFrozenRows(1);
+  if (!hasExpectedHeader_(sheet)) {
+    throw new Error("A aba encontrada não possui os cabeçalhos esperados: Data e hora, Ordem de serviço e M.O.");
   }
+
+  sheet.setFrozenRows(1);
+  sheet.getRange("A:A").setNumberFormat("dd/MM/yyyy HH:mm:ss");
+  sheet.getRange("C:C").setNumberFormat("0.00");
 }
 
 function buildSummary_(sheet) {

@@ -52,6 +52,7 @@ function normalizarResumo(data) {
   const ciclos = ciclosOriginais.map((cycle) => ({
     ciclo: cycle.ciclo || cycle.label || "Ciclo",
     total: cycle.total,
+    dataHora: cycle.ultimoLancamento || cycle.dataHora || "",
     current: cycle.current === true || (cycle.ciclo || cycle.label) === cicloAtual,
   }));
 
@@ -89,7 +90,7 @@ function renderizarHistorico(ciclos, cicloAtual) {
     info.className = "history-info";
 
     const period = document.createElement("strong");
-    period.textContent = cycle.ciclo || "Ciclo";
+    period.textContent = cycle.dataHora || cycle.ciclo || "Ciclo";
     info.appendChild(period);
 
     if (atual) {

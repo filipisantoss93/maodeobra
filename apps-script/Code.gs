@@ -1,5 +1,6 @@
 const SPREADSHEET_ID = "COLE_AQUI_O_ID_DA_PLANILHA";
 const SHEET_NAME = "Registros";
+const TIME_ZONE = "America/Sao_Paulo";
 
 function doGet(e) {
   try {
@@ -12,7 +13,13 @@ function doGet(e) {
       return json_({ ok: false, message: "Ação inválida." });
     }
 
-    return json_({ ok: true, total: getTotal_(sheet) });
+    const period = getCurrentCycleInfo_();
+
+    return json_({
+      ok: true,
+      total: getTotal_(sheet, period.key),
+      period,
+    });
   } catch (error) {
     return json_({ ok: false, message: error.message });
   }
@@ -47,10 +54,13 @@ function doPost(e) {
     sheet.getRange(nextRow, 1).setNumberFormat("dd/MM/yyyy HH:mm:ss");
     sheet.getRange(nextRow, 3).setNumberFormat("0.00");
 
+    const period = getCurrentCycleInfo_();
+
     return json_({
       ok: true,
       message: "Registro salvo com sucesso.",
-      total: getTotal_(sheet),
+      total: getTotal_(sheet, period.key),
+      period,
     });
   } catch (error) {
     return json_({ ok: false, message: error.message });
@@ -98,20 +108,71 @@ function ensureHeader_(sheet) {
   }
 }
 
-function getTotal_(sheet) {
+function getTotal_(sheet, currentCycleKey) {
   const lastRow = sheet.getLastRow();
 
   if (lastRow < 2) {
     return "0.00";
   }
 
-  const values = sheet.getRange(2, 3, lastRow - 1, 1).getValues();
-  const total = values.reduce((sum, row) => {
-    const value = Number(row[0]);
+  const rows = sheet.getRange(2, 1, lastRow - 1, 3).getValues();
+
+  const total = rows.reduce((sum, row) => {
+    const date = row[0];
+    const value = Number(row[2]);
+
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+      return sum;
+    }
+
+    if (getCycleKey_(date) !== currentCycleKey) {
+      return sum;
+    }
+
     return sum + (Number.isFinite(value) ? value : 0);
   }, 0);
 
   return total.toFixed(2);
+}
+
+function getCycleKey_(date) {
+  const localDate = Utilities.formatDate(date, TIME_ZONE, "yyyy-MM-dd");
+  const [yearText, monthText, dayText] = localDate.split("-");
+
+  let year = Number(yearText);
+  let month = Number(monthText);
+  const day = Number(dayText);
+
+  if (day < 26) {
+    month -= 1;
+
+    if (month === 0) {
+      month = 12;
+      year -= 1;
+    }
+  }
+
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function getCurrentCycleInfo_() {
+  const key = getCycleKey_(new Date());
+  const [startYearText, startMonthText] = key.split("-");
+  const startYear = Number(startYearText);
+  const startMonth = Number(startMonthText);
+
+  const endMonth = startMonth === 12 ? 1 : startMonth + 1;
+  const endYear = startMonth === 12 ? startYear + 1 : startYear;
+
+  const start = `26/${String(startMonth).padStart(2, "0")}/${startYear}`;
+  const end = `25/${String(endMonth).padStart(2, "0")}/${endYear}`;
+
+  return {
+    key,
+    start,
+    end,
+    label: `${start} a ${end}`,
+  };
 }
 
 function json_(payload) {

@@ -97,12 +97,31 @@ function renderizarLancamentos(lancamentos) {
   });
 }
 
+function validarRespostaHistorico(data) {
+  if (!data || typeof data !== "object") {
+    throw new Error("Resposta inválida do Apps Script.");
+  }
+
+  const sucesso = data.sucesso ?? data.ok;
+  if (!sucesso) {
+    throw new Error(data.erro || data.message || "Não foi possível carregar o histórico.");
+  }
+
+  if (!data.periodo || !Array.isArray(data.lancamentos)) {
+    throw new Error(
+      "O Apps Script publicado ainda está retornando o resumo antigo. Atualize a implantação do Web App para a versão com suporte a action=historico."
+    );
+  }
+
+  return data;
+}
+
 function renderizarHistorico(data) {
-  const periodo = data.periodo || {};
-  const lancamentos = Array.isArray(data.lancamentos) ? data.lancamentos : [];
+  const periodo = data.periodo;
+  const lancamentos = data.lancamentos;
 
   totalElement.textContent = formatarMO(data.total);
-  periodoElement.textContent = periodo.label || "Período selecionado";
+  periodoElement.textContent = periodo.label || `${periodo.inicio || ""} a ${periodo.fim || ""}`;
 
   const quantidade = Number.isFinite(Number(data.quantidade))
     ? Number(data.quantidade)
@@ -117,14 +136,16 @@ async function lerResposta(response) {
     throw new Error(`Falha na comunicação (${response.status}).`);
   }
 
-  const data = await response.json();
-  const sucesso = data.sucesso ?? data.ok;
+  const texto = await response.text();
 
-  if (!sucesso) {
-    throw new Error(data.erro || data.message || "Não foi possível carregar o histórico.");
+  let data;
+  try {
+    data = JSON.parse(texto);
+  } catch (error) {
+    throw new Error("O Apps Script não retornou JSON válido. Verifique a implantação e a permissão 'Qualquer pessoa'.");
   }
 
-  return data;
+  return validarRespostaHistorico(data);
 }
 
 async function carregarHistorico() {
@@ -161,10 +182,16 @@ async function carregarHistorico() {
     history.replaceState(null, "", `${location.pathname}?${params.toString()}`);
   } catch (error) {
     console.error(error);
-    totalElement.textContent = "0.00";
-    periodoElement.textContent = "Não foi possível carregar o período";
-    quantidadeElement.textContent = "0 lançamentos";
-    renderizarLancamentos([]);
+    totalElement.textContent = "—";
+    periodoElement.textContent = "Falha ao carregar o histórico";
+    quantidadeElement.textContent = "—";
+    lancamentosList.replaceChildren();
+
+    const empty = document.createElement("p");
+    empty.className = "history-empty";
+    empty.textContent = "Não foi possível consultar os lançamentos.";
+    lancamentosList.appendChild(empty);
+
     definirStatus(error.message || "Erro ao carregar o histórico.", "error");
   } finally {
     definirCarregando(false);

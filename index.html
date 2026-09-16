@@ -16,6 +16,32 @@
   <link rel="icon" type="image/svg+xml" href="./icons/icon.svg">
   <link rel="apple-touch-icon" href="./icons/icon.svg">
   <link rel="stylesheet" href="styles.css">
+  <style>
+    .checkbox-field {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: fit-content;
+      margin: 20px 0 0;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .checkbox-field input[type="checkbox"] {
+      width: 22px;
+      min-height: 22px;
+      height: 22px;
+      margin: 0;
+      padding: 0;
+      flex: 0 0 22px;
+      accent-color: var(--blue-500);
+      cursor: pointer;
+    }
+
+    .checkbox-field span {
+      line-height: 1;
+    }
+  </style>
 </head>
 <body>
   <main class="page-shell">
@@ -45,6 +71,11 @@
           <input id="mao-obra" name="maoObra" type="text" inputmode="decimal" autocomplete="off" placeholder="0.00" required>
           <small>Use valores como 1.50, 2.00 ou 0.75.</small>
         </div>
+
+        <label class="checkbox-field" for="orcamento">
+          <input id="orcamento" name="orcamento" type="checkbox">
+          <span>Orçamento</span>
+        </label>
 
         <button id="btn-registrar" type="submit">REGISTRAR</button>
         <p id="status" class="status" role="status" aria-live="polite"></p>

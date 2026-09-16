@@ -80,6 +80,12 @@ function doPost(e) {
       .trim()
       .replace(",", ".");
     const mo = Number(valorMO);
+    const orcamento = (
+      dados.orcamento === 1 ||
+      dados.orcamento === "1" ||
+      dados.orcamento === true ||
+      String(dados.orcamento).toLowerCase() === "true"
+    ) ? 1 : 0;
 
     if (!os) {
       throw new Error("Informe a Ordem de Serviço.");
@@ -95,20 +101,23 @@ function doPost(e) {
       agora,
       os,
       mo,
-      ciclo
+      ciclo,
+      orcamento
     ]);
 
     const ultimaLinha = aba.getLastRow();
 
     aba.getRange(ultimaLinha, 1).setNumberFormat("dd/MM/yyyy HH:mm:ss");
     aba.getRange(ultimaLinha, 3).setNumberFormat("0.00");
+    aba.getRange(ultimaLinha, 5).setNumberFormat("0");
 
     return resposta({
       sucesso: true,
       ok: true,
       mensagem: "Registro salvo com sucesso.",
       message: "Registro salvo com sucesso.",
-      ciclo
+      ciclo,
+      orcamento
     });
 
   } catch (erro) {
@@ -142,13 +151,17 @@ function obterAba_(planilha) {
       "Data e Hora",
       "Ordem de Serviço",
       "M.O",
-      "Ciclo"
+      "Ciclo",
+      "Orçamento"
     ]);
+  } else if (String(aba.getRange(1, 5).getValue()).trim() !== "Orçamento") {
+    aba.getRange(1, 5).setValue("Orçamento");
   }
 
   aba.setFrozenRows(1);
   aba.getRange("A:A").setNumberFormat("dd/MM/yyyy HH:mm:ss");
   aba.getRange("C:C").setNumberFormat("0.00");
+  aba.getRange("E:E").setNumberFormat("0");
 
   return aba;
 }

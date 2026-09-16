@@ -3,6 +3,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXN2y03f4L8cRw
 const form = document.querySelector("#registro-form");
 const ordemServicoInput = document.querySelector("#ordem-servico");
 const maoObraInput = document.querySelector("#mao-obra");
+const orcamentoCheckbox = document.querySelector("#orcamento");
 const totalElement = document.querySelector("#total-mo");
 const periodoElement = document.querySelector("#periodo-atual");
 const historyList = document.querySelector("#history-list");
@@ -169,6 +170,7 @@ form.addEventListener("submit", async (event) => {
 
   const ordemServico = ordemServicoInput.value.trim();
   const maoObra = converterMO(maoObraInput.value);
+  const orcamento = orcamentoCheckbox.checked ? 1 : 0;
 
   if (!ordemServico) {
     definirStatus("Informe a ordem de serviço.", "error");
@@ -192,6 +194,7 @@ form.addEventListener("submit", async (event) => {
       body: JSON.stringify({
         os: ordemServico,
         mo: maoObra.toFixed(2),
+        orcamento,
       }),
     });
 

@@ -1,4 +1,6 @@
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby1VuJcd7ZEsJLWh2dA15rACCFVwgbPZjyK-8VQ4oM86lhOS_n9Lr1Bhrch6ZsNXPY0/exec";
+const CACHE_RESUMO_KEY = "maodeobra:resumo:v1";
+const CACHE_RESUMO_TTL = 2 * 60 * 1000;
 
 const form = document.querySelector("#registro-form");
 const ordemServicoInput = document.querySelector("#ordem-servico");
@@ -9,6 +11,37 @@ const periodoElement = document.querySelector("#periodo-atual");
 const historyList = document.querySelector("#history-list");
 const statusElement = document.querySelector("#status");
 const submitButton = document.querySelector("#btn-registrar");
+
+function lerCacheLocal(chave) {
+  try {
+    const bruto = localStorage.getItem(chave);
+    if (!bruto) return null;
+
+    const cache = JSON.parse(bruto);
+    if (!cache || typeof cache !== "object" || !cache.data) return null;
+
+    return cache;
+  } catch (error) {
+    console.warn("Não foi possível ler o cache local:", error);
+    return null;
+  }
+}
+
+function salvarCacheLocal(chave, data) {
+  try {
+    localStorage.setItem(chave, JSON.stringify({
+      salvoEm: Date.now(),
+      data,
+    }));
+  } catch (error) {
+    console.warn("Não foi possível salvar o cache local:", error);
+  }
+}
+
+function cacheAindaValido(cache, ttl) {
+  const salvoEm = Number(cache?.salvoEm);
+  return Number.isFinite(salvoEm) && Date.now() - salvoEm < ttl;
+}
 
 function formatarMO(valor) {
   const numero = Number(valor);
@@ -132,12 +165,27 @@ async function lerResposta(response) {
   return data;
 }
 
-async function carregarTotal({ silencioso = false } = {}) {
+async function carregarTotal({ silencioso = false, forcar = false } = {}) {
+  const cache = lerCacheLocal(CACHE_RESUMO_KEY);
+
+  if (cache?.data) {
+    renderizarResumo(cache.data);
+  }
+
+  if (!forcar && cacheAindaValido(cache, CACHE_RESUMO_TTL)) {
+    return cache.data;
+  }
+
   if (!navigator.onLine) {
     if (!silencioso) {
-      definirStatus("Sem internet. A tela está disponível, mas os dados da planilha exigem conexão.", "error");
+      definirStatus(
+        cache?.data
+          ? "Sem internet. Exibindo os últimos dados salvos neste aparelho."
+          : "Sem internet. Ainda não há dados salvos neste aparelho.",
+        cache?.data ? "" : "error"
+      );
     }
-    return null;
+    return cache?.data || null;
   }
 
   try {
@@ -148,10 +196,19 @@ async function carregarTotal({ silencioso = false } = {}) {
     });
 
     const data = await lerResposta(response);
+    salvarCacheLocal(CACHE_RESUMO_KEY, data);
     renderizarResumo(data);
     return data;
   } catch (error) {
     console.error(error);
+
+    if (cache?.data) {
+      if (!silencioso) {
+        definirStatus("Não foi possível atualizar agora. Exibindo os últimos dados salvos.");
+      }
+      return cache.data;
+    }
+
     if (!silencioso) {
       definirStatus(error.message || "Não foi possível carregar os dados da planilha.", "error");
     }
@@ -204,7 +261,7 @@ form.addEventListener("submit", async (event) => {
     ordemServicoInput.focus();
     definirStatus("Registro salvo com sucesso.", "success");
 
-    await carregarTotal({ silencioso: true });
+    await carregarTotal({ silencioso: true, forcar: true });
   } catch (error) {
     console.error(error);
     definirStatus(error.message || "Erro ao registrar. Tente novamente.", "error");
@@ -226,7 +283,13 @@ window.addEventListener("online", () => {
 });
 
 window.addEventListener("offline", () => {
-  definirStatus("Sem internet. A tela continua disponível, mas o registro está temporariamente indisponível.", "error");
+  const cache = lerCacheLocal(CACHE_RESUMO_KEY);
+  definirStatus(
+    cache?.data
+      ? "Sem internet. Os últimos dados salvos continuam disponíveis."
+      : "Sem internet. O registro está temporariamente indisponível.",
+    cache?.data ? "" : "error"
+  );
 });
 
 if ("serviceWorker" in navigator) {
@@ -237,4 +300,9 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-carregarTotal().catch(() => {});
+const cacheResumoInicial = lerCacheLocal(CACHE_RESUMO_KEY);
+if (cacheResumoInicial?.data) {
+  renderizarResumo(cacheResumoInicial.data);
+}
+
+carregarTotal({ silencioso: Boolean(cacheResumoInicial?.data) }).catch(() => {});

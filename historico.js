@@ -1,4 +1,8 @@
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby1VuJcd7ZEsJLWh2dA15rACCFVwgbPZjyK-8VQ4oM86lhOS_n9Lr1Bhrch6ZsNXPY0/exec";
+const CACHE_HISTORICO_PREFIX = "maodeobra:historico:v1:";
+const CACHE_HISTORICO_TTL_ATUAL = 2 * 60 * 1000;
+const CACHE_HISTORICO_TTL_FECHADO = 60 * 60 * 1000;
+const CACHE_HISTORICO_MAX_ITENS = 18;
 
 const form = document.querySelector("#historico-form");
 const mesSelect = document.querySelector("#mes");
@@ -9,6 +13,63 @@ const periodoElement = document.querySelector("#historico-periodo");
 const quantidadeElement = document.querySelector("#historico-quantidade");
 const statusElement = document.querySelector("#historico-status");
 const lancamentosList = document.querySelector("#lancamentos-list");
+
+function chaveCacheHistorico(mes, ano) {
+  return `${CACHE_HISTORICO_PREFIX}${ano}-${String(mes).padStart(2, "0")}`;
+}
+
+function lerCacheLocal(chave) {
+  try {
+    const bruto = localStorage.getItem(chave);
+    if (!bruto) return null;
+
+    const cache = JSON.parse(bruto);
+    if (!cache || typeof cache !== "object" || !cache.data) return null;
+
+    return cache;
+  } catch (error) {
+    console.warn("Não foi possível ler o cache local:", error);
+    return null;
+  }
+}
+
+function cacheAindaValido(cache, ttl) {
+  const salvoEm = Number(cache?.salvoEm);
+  return Number.isFinite(salvoEm) && Date.now() - salvoEm < ttl;
+}
+
+function limparCachesHistoricoAntigos() {
+  try {
+    const itens = [];
+
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const chave = localStorage.key(i);
+      if (!chave || !chave.startsWith(CACHE_HISTORICO_PREFIX)) continue;
+
+      const cache = lerCacheLocal(chave);
+      itens.push({ chave, salvoEm: Number(cache?.salvoEm) || 0 });
+    }
+
+    itens
+      .sort((a, b) => b.salvoEm - a.salvoEm)
+      .slice(CACHE_HISTORICO_MAX_ITENS)
+      .forEach((item) => localStorage.removeItem(item.chave));
+  } catch (error) {
+    console.warn("Não foi possível limpar caches antigos:", error);
+  }
+}
+
+function salvarCacheHistorico(mes, ano, data) {
+  try {
+    localStorage.setItem(chaveCacheHistorico(mes, ano), JSON.stringify({
+      salvoEm: Date.now(),
+      data,
+    }));
+    limparCachesHistoricoAntigos();
+  } catch (error) {
+    console.warn("Não foi possível salvar o histórico localmente:", error);
+  }
+}
 
 function formatarMO(valor) {
   const numero = Number(valor);
@@ -39,6 +100,22 @@ function getPeriodoAtual() {
   }
 
   return { mes, ano };
+}
+
+function periodoEhAtual(mes, ano) {
+  const atual = getPeriodoAtual();
+  return atual.mes === mes && atual.ano === ano;
+}
+
+function obterTtlHistorico(mes, ano) {
+  return periodoEhAtual(mes, ano)
+    ? CACHE_HISTORICO_TTL_ATUAL
+    : CACHE_HISTORICO_TTL_FECHADO;
+}
+
+function atualizarUrl(mes, ano) {
+  const params = new URLSearchParams({ mes: String(mes), ano: String(ano) });
+  history.replaceState(null, "", `${location.pathname}?${params.toString()}`);
 }
 
 function preencherAnos(anoSelecionado) {
@@ -148,18 +225,37 @@ async function lerResposta(response) {
   return validarRespostaHistorico(data);
 }
 
-async function carregarHistorico() {
+async function carregarHistorico({ forcar = false } = {}) {
   const mes = Number(mesSelect.value);
   const ano = Number(anoSelect.value);
+  const chave = chaveCacheHistorico(mes, ano);
+  const cache = lerCacheLocal(chave);
 
-  if (!navigator.onLine) {
-    definirStatus("Sem internet. O histórico precisa de conexão para consultar a planilha.", "error");
-    renderizarLancamentos([]);
-    return;
+  if (cache?.data) {
+    renderizarHistorico(cache.data);
+    atualizarUrl(mes, ano);
   }
 
-  definirCarregando(true);
-  definirStatus("Consultando a planilha...");
+  const ttl = obterTtlHistorico(mes, ano);
+  if (!forcar && cacheAindaValido(cache, ttl)) {
+    definirStatus();
+    return cache.data;
+  }
+
+  if (!navigator.onLine) {
+    if (cache?.data) {
+      definirStatus("Sem internet. Exibindo os dados salvos deste período.");
+      return cache.data;
+    }
+
+    definirStatus("Sem internet e sem dados salvos para este período.", "error");
+    renderizarLancamentos([]);
+    return null;
+  }
+
+  const bloquearTela = forcar || !cache?.data;
+  definirCarregando(bloquearTela);
+  definirStatus(cache?.data ? "Atualizando dados em segundo plano..." : "Consultando a planilha...");
 
   try {
     const url = new URL(APPS_SCRIPT_URL);
@@ -175,13 +271,19 @@ async function carregarHistorico() {
     });
 
     const data = await lerResposta(response);
+    salvarCacheHistorico(mes, ano, data);
     renderizarHistorico(data);
+    atualizarUrl(mes, ano);
     definirStatus();
-
-    const params = new URLSearchParams({ mes: String(mes), ano: String(ano) });
-    history.replaceState(null, "", `${location.pathname}?${params.toString()}`);
+    return data;
   } catch (error) {
     console.error(error);
+
+    if (cache?.data) {
+      definirStatus("Não foi possível atualizar agora. Exibindo os dados salvos.");
+      return cache.data;
+    }
+
     totalElement.textContent = "—";
     periodoElement.textContent = "Falha ao carregar o histórico";
     quantidadeElement.textContent = "—";
@@ -193,6 +295,7 @@ async function carregarHistorico() {
     lancamentosList.appendChild(empty);
 
     definirStatus(error.message || "Erro ao carregar o histórico.", "error");
+    throw error;
   } finally {
     definirCarregando(false);
   }
@@ -200,16 +303,25 @@ async function carregarHistorico() {
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();
-  carregarHistorico();
+  carregarHistorico({ forcar: true }).catch(() => {});
 });
 
 window.addEventListener("online", () => {
   definirStatus("Conexão restabelecida.", "success");
-  carregarHistorico();
+  carregarHistorico().catch(() => {});
 });
 
 window.addEventListener("offline", () => {
-  definirStatus("Sem internet. A página continua disponível, mas os dados exigem conexão.", "error");
+  const mes = Number(mesSelect.value);
+  const ano = Number(anoSelect.value);
+  const cache = lerCacheLocal(chaveCacheHistorico(mes, ano));
+
+  definirStatus(
+    cache?.data
+      ? "Sem internet. Os dados salvos deste período continuam disponíveis."
+      : "Sem internet. Este período ainda não está salvo neste aparelho.",
+    cache?.data ? "" : "error"
+  );
 });
 
 if ("serviceWorker" in navigator) {
@@ -229,4 +341,4 @@ preencherAnos(anoInicial);
 mesSelect.value = String(Math.min(12, Math.max(1, mesInicial)));
 anoSelect.value = String(anoInicial);
 
-carregarHistorico();
+carregarHistorico().catch(() => {});

@@ -1,4 +1,4 @@
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyXN2y03f4L8cRwLXePmqubpHFYCTyn54kfr3YBKS13JCxYuX5OAa9v-_X92bDVpJ18/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby1VuJcd7ZEsJLWh2dA15rACCFVwgbPZjyK-8VQ4oM86lhOS_n9Lr1Bhrch6ZsNXPY0/exec";
 
 const form = document.querySelector("#historico-form");
 const mesSelect = document.querySelector("#mes");

@@ -11,6 +11,8 @@ const periodoElement = document.querySelector("#periodo-atual");
 const historyList = document.querySelector("#history-list");
 const statusElement = document.querySelector("#status");
 const submitButton = document.querySelector("#btn-registrar");
+const atualizarButton = document.querySelector("#btn-atualizar");
+let ultimaConsultaResumo = 0;
 
 function lerCacheLocal(chave) {
   try {
@@ -165,7 +167,8 @@ async function lerResposta(response) {
   return data;
 }
 
-async function carregarTotal({ silencioso = false, forcar = false } = {}) {
+async function carregarTotal({ silencioso = false, forcar = false, rejeitarFalha = false } = {}) {
+  const consulta = ++ultimaConsultaResumo;
   const cache = lerCacheLocal(CACHE_RESUMO_KEY);
 
   if (cache?.data) {
@@ -185,6 +188,7 @@ async function carregarTotal({ silencioso = false, forcar = false } = {}) {
         cache?.data ? "" : "error"
       );
     }
+    if (rejeitarFalha) throw new Error("Sem internet. Não foi possível atualizar os dados.");
     return cache?.data || null;
   }
 
@@ -196,16 +200,19 @@ async function carregarTotal({ silencioso = false, forcar = false } = {}) {
     });
 
     const data = await lerResposta(response);
+    if (consulta !== ultimaConsultaResumo) return data;
     salvarCacheLocal(CACHE_RESUMO_KEY, data);
     renderizarResumo(data);
     return data;
   } catch (error) {
     console.error(error);
+    if (consulta !== ultimaConsultaResumo) throw error;
 
     if (cache?.data) {
       if (!silencioso) {
         definirStatus("Não foi possível atualizar agora. Exibindo os últimos dados salvos.");
       }
+      if (rejeitarFalha) throw error;
       return cache.data;
     }
 
@@ -215,6 +222,27 @@ async function carregarTotal({ silencioso = false, forcar = false } = {}) {
     throw error;
   }
 }
+
+window.configurarAtualizacaoPagina({
+  botao: atualizarButton,
+  atualizar: async () => {
+    if (submitButton.disabled) return;
+    definirStatus("Atualizando dados da planilha...");
+    try {
+      await carregarTotal({ forcar: true, silencioso: true, rejeitarFalha: true });
+      definirStatus("Dados atualizados.", "success");
+    } catch (error) {
+      definirStatus(
+        navigator.onLine
+          ? (lerCacheLocal(CACHE_RESUMO_KEY)?.data
+            ? "Não foi possível atualizar. Exibindo os últimos dados salvos."
+            : "Não foi possível carregar os dados da planilha.")
+          : "Sem internet. Não foi possível atualizar os dados.",
+        "error"
+      );
+    }
+  },
+});
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
@@ -242,6 +270,7 @@ form.addEventListener("submit", async (event) => {
   }
 
   definirCarregando(true);
+  atualizarButton.disabled = true;
   definirStatus("Enviando para a planilha...");
 
   try {
@@ -267,6 +296,7 @@ form.addEventListener("submit", async (event) => {
     definirStatus(error.message || "Erro ao registrar. Tente novamente.", "error");
   } finally {
     definirCarregando(false);
+    atualizarButton.disabled = false;
   }
 });
 

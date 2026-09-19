@@ -13,6 +13,8 @@ const periodoElement = document.querySelector("#historico-periodo");
 const quantidadeElement = document.querySelector("#historico-quantidade");
 const statusElement = document.querySelector("#historico-status");
 const lancamentosList = document.querySelector("#lancamentos-list");
+const atualizarButton = document.querySelector("#btn-atualizar");
+let ultimaConsultaHistorico = 0;
 
 function chaveCacheHistorico(mes, ano) {
   return `${CACHE_HISTORICO_PREFIX}${ano}-${String(mes).padStart(2, "0")}`;
@@ -225,7 +227,8 @@ async function lerResposta(response) {
   return validarRespostaHistorico(data);
 }
 
-async function carregarHistorico({ forcar = false } = {}) {
+async function carregarHistorico({ forcar = false, rejeitarFalha = false } = {}) {
+  const consulta = ++ultimaConsultaHistorico;
   const mes = Number(mesSelect.value);
   const ano = Number(anoSelect.value);
   const chave = chaveCacheHistorico(mes, ano);
@@ -245,11 +248,13 @@ async function carregarHistorico({ forcar = false } = {}) {
   if (!navigator.onLine) {
     if (cache?.data) {
       definirStatus("Sem internet. Exibindo os dados salvos deste período.");
+      if (rejeitarFalha) throw new Error("Sem internet. Não foi possível atualizar o histórico.");
       return cache.data;
     }
 
     definirStatus("Sem internet e sem dados salvos para este período.", "error");
     renderizarLancamentos([]);
+    if (rejeitarFalha) throw new Error("Sem internet. Não foi possível atualizar o histórico.");
     return null;
   }
 
@@ -272,15 +277,18 @@ async function carregarHistorico({ forcar = false } = {}) {
 
     const data = await lerResposta(response);
     salvarCacheHistorico(mes, ano, data);
+    if (consulta !== ultimaConsultaHistorico) return data;
     renderizarHistorico(data);
     atualizarUrl(mes, ano);
     definirStatus();
     return data;
   } catch (error) {
     console.error(error);
+    if (consulta !== ultimaConsultaHistorico) throw error;
 
     if (cache?.data) {
       definirStatus("Não foi possível atualizar agora. Exibindo os dados salvos.");
+      if (rejeitarFalha) throw error;
       return cache.data;
     }
 
@@ -297,9 +305,29 @@ async function carregarHistorico({ forcar = false } = {}) {
     definirStatus(error.message || "Erro ao carregar o histórico.", "error");
     throw error;
   } finally {
-    definirCarregando(false);
+    if (consulta === ultimaConsultaHistorico) definirCarregando(false);
   }
 }
+
+window.configurarAtualizacaoPagina({
+  botao: atualizarButton,
+  atualizar: async () => {
+    definirStatus("Atualizando histórico da planilha...");
+    try {
+      await carregarHistorico({ forcar: true, rejeitarFalha: true });
+      definirStatus("Histórico atualizado.", "success");
+    } catch (error) {
+      definirStatus(
+        navigator.onLine
+          ? (lerCacheLocal(chaveCacheHistorico(Number(mesSelect.value), Number(anoSelect.value)))?.data
+            ? "Não foi possível atualizar. Exibindo os últimos dados salvos."
+            : "Não foi possível carregar os dados da planilha.")
+          : "Sem internet. Não foi possível atualizar o histórico.",
+        "error"
+      );
+    }
+  },
+});
 
 form.addEventListener("submit", (event) => {
   event.preventDefault();

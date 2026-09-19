@@ -1,4 +1,4 @@
-const CACHE_NAME = "maodeobra-v8";
+const CACHE_NAME = "maodeobra-v9";
 
 const APP_SHELL = [
   "./",
@@ -7,6 +7,7 @@ const APP_SHELL = [
   "./styles.css",
   "./app.js",
   "./historico.js",
+  "./refresh.js",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-maskable.svg"

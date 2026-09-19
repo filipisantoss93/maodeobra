@@ -234,8 +234,10 @@ window.configurarAtualizacaoPagina({
     } catch (error) {
       definirStatus(
         navigator.onLine
-          ? "Não foi possível atualizar. Os dados salvos foram mantidos."
-          : "Sem internet. Exibindo os últimos dados salvos.",
+          ? (lerCacheLocal(CACHE_RESUMO_KEY)?.data
+            ? "Não foi possível atualizar. Exibindo os últimos dados salvos."
+            : "Não foi possível carregar os dados da planilha.")
+          : "Sem internet. Não foi possível atualizar os dados.",
         "error"
       );
     }

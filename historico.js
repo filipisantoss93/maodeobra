@@ -1,5 +1,5 @@
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby1VuJcd7ZEsJLWh2dA15rACCFVwgbPZjyK-8VQ4oM86lhOS_n9Lr1Bhrch6ZsNXPY0/exec";
-const CACHE_HISTORICO_PREFIX = "maodeobra:historico:v1:";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzyRI9oDkZ9QptPAkr-8Wr8hnflaSULRJb35gqPRZYxx6JzYlPNPgRPLjs2FopU9Pbz/exec";
+const CACHE_HISTORICO_PREFIX = "maodeobra:historico:v2:";
 const CACHE_HISTORICO_TTL_ATUAL = 2 * 60 * 1000;
 const CACHE_HISTORICO_TTL_FECHADO = 60 * 60 * 1000;
 const CACHE_HISTORICO_MAX_ITENS = 18;

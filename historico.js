@@ -319,8 +319,10 @@ window.configurarAtualizacaoPagina({
     } catch (error) {
       definirStatus(
         navigator.onLine
-          ? "Não foi possível atualizar. Os dados salvos foram mantidos."
-          : "Sem internet. Exibindo os dados salvos deste período.",
+          ? (lerCacheLocal(chaveCacheHistorico(Number(mesSelect.value), Number(anoSelect.value)))?.data
+            ? "Não foi possível atualizar. Exibindo os últimos dados salvos."
+            : "Não foi possível carregar os dados da planilha.")
+          : "Sem internet. Não foi possível atualizar o histórico.",
         "error"
       );
     }

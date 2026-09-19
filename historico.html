@@ -26,7 +26,10 @@
           <p class="eyebrow">LANÇAMENTOS</p>
           <h1 id="page-title">Histórico detalhado</h1>
         </div>
-        <a class="header-back" href="index.html">Voltar</a>
+        <div class="header-actions">
+          <button id="btn-atualizar" class="refresh-button" type="button" aria-label="Atualizar dados" title="Atualizar dados"><span aria-hidden="true">↻</span></button>
+          <a class="header-back" href="index.html">Voltar</a>
+        </div>
       </header>
 
       <section class="filter-card" aria-labelledby="filter-title">
@@ -101,6 +104,7 @@
     </section>
   </main>
 
+  <script src="refresh.js" defer></script>
   <script src="historico.js" defer></script>
 </body>
 </html>
